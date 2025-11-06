@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socratic Tutor</title>
+        <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="login-screen" id="loginScreen">
+        <h1>Socratic Tutor Login</h1>
+        <input type="email" id="emailInput" placeholder="yourname@csd.auth.gr">
+        <button onclick="handleLogin().catch(console.error)">Login</button>
+        <p id="errorMessage"></p>
+    </div>
+
+    <div class="chat-screen" id="chatScreen" style="display: none;">
+        <div class="header">
+            <h2>Socratic Tutor</h2>
+        </div>
+        <div class="messages" id="messagesContainer"></div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
