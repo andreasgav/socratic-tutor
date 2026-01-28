@@ -260,3 +260,6 @@ document.getElementById('userInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') sendMessage();
 });
 
+
+
+
