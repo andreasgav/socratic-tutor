@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw14mvMj0ICpxmeOgb8ikvKPaee6kUkdI7bnUR2ukMUlhRBrZ6AfHQGIGcpfgWTgWh1ng/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUsSBSkwWhlEezKQ7hKvu8iYThwqasmTNg2trN_zzKuvtkLsgVjhsQPFccEkZoPAkXfQ/exec';
 
 let currentUsername = '';
 let sessionId = '';
