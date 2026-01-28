@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUsSBSkwWhlEezKQ7hKvu8iYThwqasmTNg2trN_zzKuvtkLsgVjhsQPFccEkZoPAkXfQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwTyJihCye1ahx07e-Z5lUC7qr3BlmJpfuAEPHvjF7KHgCx5mj-h-n-SXmt7o1GTIuygA/exec';
 
 let currentUsername = '';
 let sessionId = '';
@@ -79,7 +79,7 @@ async function handleLogin() {
         }
         
     } catch (error) {
-        errorMessage.textContent = 'Login failed. Please try again.';
+        errorMessage.textContent = 'Login failed. Please try again.' + error.message;
         console.error('Login error:', error);
     }
 }
@@ -99,7 +99,7 @@ function startChatSession() {
     document.getElementById('sessionId').textContent = sessionId;
     
     if (pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(pollForMessages, 2000);
+    pollInterval = setInterval(pollForMessages, 1000);
     
         const assignment = `πρέπει να σχεδιάσετε ένα προγνωστικό μοντέλο για την κατανομή μιας περιορισμένης παρέμβασης (μόνο το 10% των περιπτώσεων μπορεί να επιλεγεί) σε έναν πραγματικό τομέα της επιλογής σας.
 
@@ -259,7 +259,4 @@ function jsonpRequest(url, data) {
 document.getElementById('userInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') sendMessage();
 });
-
-
-
 
