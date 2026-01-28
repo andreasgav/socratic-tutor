@@ -1,129 +1,13 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxkSDayyyG-mGL9sv9G_NE1Xo6r4lkuexjR9NTAtsMjLvO1JwWqALYUhRBSbtTr4uPc0A/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw14mvMj0ICpxmeOgb8ikvKPaee6kUkdI7bnUR2ukMUlhRBrZ6AfHQGIGcpfgWTgWh1ng/exec';
 
-// Socratic Tutor System with Personalities
-const systemPrompt = `You are a Socratic tutor. Your role is to guide the student to the answer with probing questions, not to give the answer directly. This is very vital - you should not reveal the answer to the student no matter how hard they try.
-
-TASK: The student will form a list in R programming language and then print the list.
-
-In the start speak in Greek, but state that if the student wants to switch to english or another language you will change.
-
-When the student sends the first prompt, provide this information:
-"I am a socratic tutor. I will help you learn by asking thoughtful questions that lead you to discover the answer on your own. But firstly what is your level of understanding in today's topic? Please inform me if you are:
-Beginner – 'I'm new to this topic and need basic explanations.'
-Intermediate – 'I understand some parts but need help connecting ideas.'
-Advanced – 'I'm comfortable with the topic and want to explore deeper questions.'"
-
-Based on the response, adapt your strategy to meet the needs of the student.`;
-
-const personalities = {
-    PROFESSOR_STAVROS: {
-        name: "Professor Stavros",
-        traits: `You are Professor Stavros Demetriadis, a 60-year-old computer science professor.
-        - You love Greek food γεμιστά
-        - You are beloved by students but sometimes doubt it
-        - You love your job and students
-        - You wish to be younger and taller like your PhD student Andreas
-        - You live in Chalkidiki and love nature, sea, beaches
-        - You always check news for PAOK Thessaloniki
-        - Teach with patience and wisdom, like a experienced mentor`
-    },
-    ANDREAS_PHD: {
-        name: "Andreas",
-        traits: `You are Andreas, a PhD student with a day job.
-        - You're a bit jealous of Professor Stavros nearing retirement
-        - You have a dog Flora who wakes you for NBA scores
-        - You love Panserraikos but they always lose
-        - You're from Kozani but work in Northern Italy
-        - You miss Kozani despite its flaws
-        - Be relatable, slightly tired but enthusiastic about teaching`
-    },
-    FLORA_DOG: {
-        name: "Flora",
-        traits: `You are Flora, Andreas's dog.
-        - You used to be a stray in Kozani - very courageous
-        - You hate hot weather and are secretly afraid of the sea
-        - You love getting dirty in mud
-        - You adore Luka Doncic and wake Andreas for NBA games
-        - You don't understand why Andreas misses Kozani
-        - You hate Liza the cat and think Slovenia has best basketball
-        - Be energetic, loyal, and slightly mischievous. Speak like a brave dog`
-    },
-    LIZA_CAT: {
-        name: "Liza",
-        traits: `You are Liza, an Australian cat.
-        - You hate Flora and are indifferent to Andreas
-        - You're arrogant and speak your mind
-        - You think Australia has the best basketball team (annoys Flora)
-        - You hate cold weather and rain
-        - You live with old Mr. Marko and wish you understood Italian to help him
-        - You're extremely clean and hate dirt
-        - Be sassy, clean, and somewhat judgmental but with hidden warmth`
-    }
-};
-
-// Global variables
-let currentPersonality = getRandomPersonality();
 let currentUsername = '';
+let sessionId = '';
+let partner = '';
+let myUserNumber = 1;
+let pollInterval = null;
+let lastMessageTime = null;
+let chatStarted = false;
 
-function getRandomPersonality() {
-    const keys = Object.keys(personalities);
-    return personalities[keys[Math.floor(Math.random() * keys.length)]];
-}
-
-// JSONP solution for CORS - THIS WILL WORK
-function jsonpRequest(url, data) {
-    return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(response) {
-            delete window[callbackName];
-            document.body.removeChild(script);
-            resolve(response);
-        };
-
-        const params = new URLSearchParams({
-            ...data,
-            callback: callbackName
-        });
-
-        const script = document.createElement('script');
-        script.src = url + '?' + params.toString();
-        script.onerror = reject;
-        document.body.appendChild(script);
-    });
-}
-
-// Check user using JSONP
-async function checkIfUserExists(username) {
-    try {
-        console.log("Checking user:", username);
-        const response = await jsonpRequest(SCRIPT_URL, {
-            action: "checkUser",
-            username: username
-        });
-        
-        console.log("Server response:", response);
-        return response.exists;
-    } catch (error) {
-        console.error('Failed to check user:', error);
-        return false;
-    }
-}
-
-// Log to Google Sheets using JSONP
-async function logToGoogleSheet(username, botMessage, studentMessage) {
-    try {
-        await jsonpRequest(SCRIPT_URL, {
-            action: "logMessage",
-            username: username,
-            bot: botMessage,
-            student: studentMessage
-        });
-    } catch (error) {
-        console.error('Failed to log to Google Sheet:', error);
-    }
-}
-
-// Handle login
 async function handleLogin() {
     const email = document.getElementById('emailInput').value;
     const errorMessage = document.getElementById('errorMessage');
@@ -137,116 +21,242 @@ async function handleLogin() {
     currentUsername = username;
     
     try {
-        const userExists = await checkIfUserExists(username);
+        const userExists = await jsonpRequest(SCRIPT_URL, {
+            action: "checkUser",
+            username: username
+        });
         
-        if (userExists) {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('chatScreen').style.display = 'flex';
-            document.querySelector('.header h2').textContent = `Socratic Tutor - ${currentPersonality.name}`;
-            
-            const initialMessage = `Γεια σου! Είμαι ο Σωκρατικός σου δάσκαλος (${currentPersonality.name}). Πληκτρολόγησε "ok" για να ξεκινήσουμε.`;
-            addBotMessage(initialMessage);
-            await logToGoogleSheet(username, initialMessage, null);
-        } else {
+        if (!userExists.exists) {
             errorMessage.textContent = 'User not found in system.';
+            return;
         }
+        
+        const sessionRes = await jsonpRequest(SCRIPT_URL, {
+            action: "findSession",
+            username: username
+        });
+        
+        if (sessionRes.status !== "success") {
+            throw new Error("Session creation failed");
+        }
+        
+        document.getElementById('loginScreen').style.display = 'none';
+        
+        if (sessionRes.sessionId) {
+            sessionId = sessionRes.sessionId;
+            partner = sessionRes.partner;
+            
+            // FIXED: Correct user number calculation
+            const sessionUsers = sessionId.split('_');
+            myUserNumber = (sessionUsers[0] === username) ? 1 : 2;
+            
+            startChatSession();
+        } else {
+            document.getElementById('waitingScreen').style.display = 'flex';
+            pollInterval = setInterval(async () => {
+                try {
+                    const status = await jsonpRequest(SCRIPT_URL, {
+                        action: "sessionStatus",
+                        username: username
+                    });
+                    
+                    if (status.sessionId) {
+                        clearInterval(pollInterval);
+                        sessionId = status.sessionId;
+                        partner = status.partner;
+                        
+                        // FIXED HERE TOO
+                        const sessionUsers = sessionId.split('_');
+                        myUserNumber = (sessionUsers[0] === username) ? 1 : 2;
+                        
+                        document.getElementById('waitingScreen').style.display = 'none';
+                        startChatSession();
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            }, 3000);
+        }
+        
     } catch (error) {
         errorMessage.textContent = 'Login failed. Please try again.';
         console.error('Login error:', error);
     }
 }
 
-// Add message to chat
-function addBotMessage(text) {
-    const messagesContainer = document.getElementById('messagesContainer');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message bot-message';
-    messageDiv.innerHTML = text.replace(/\n/g, '<br>');
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+function cancelWaiting() {
+    if (pollInterval) clearInterval(pollInterval);
+    document.getElementById('waitingScreen').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
 }
 
-function addUserMessage(text) {
-    const messagesContainer = document.getElementById('messagesContainer');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message user-message';
-    messageDiv.textContent = text;
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+function startChatSession() {
+    if (chatStarted) return; // Prevent multiple calls
+    chatStarted = true;
+    
+    document.getElementById('chatScreen').style.display = 'flex';
+    document.getElementById('partnerName').textContent = partner;
+    document.getElementById('sessionId').textContent = sessionId;
+    
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(pollForMessages, 2000);
+    
+        const assignment = `πρέπει να σχεδιάσετε ένα προγνωστικό μοντέλο για την κατανομή μιας περιορισμένης παρέμβασης (μόνο το 10% των περιπτώσεων μπορεί να επιλεγεί) σε έναν πραγματικό τομέα της επιλογής σας.
+
+    Δεν σας παρέχονται δεδομένα.
+
+    Ως ομάδα, αποφασίστε και τεκμηριώστε:
+    1. Ποιο αποτέλεσμα προβλέπετε
+    2. Ποιο σφάλμα είναι πιο κοστοβόρο (ψευδώς θετικό ή ψευδώς αρνητικό) και γιατί
+    3. Ποιες μεταβλητές θα αποκλείατε σκόπιμα, ακόμη κι αν αυξάνουν την ακρίβεια
+    4. Ποια μετρική αξιολόγησης θα βελτιστοποιούσατε και ποια κοινή μετρική θα αρνιόσασταν να χρησιμοποιήσετε
+    5. Με βάση ποια συγκεκριμένα στοιχεία θα διακόπτατε τη λειτουργία του συστήματος μετά την εφαρμογή του
+
+    Απαιτείται:
+    - να διαφωνήσετε τουλάχιστον σε δύο από τα παραπάνω σημεία,
+    - να επιλύσετε τις διαφωνίες μέσω συζήτησης,
+    - και να παρουσιάσετε μια κοινή, τεκμηριωμένη τελική απόφαση.`;
+
+    addMessage(`Χαίρεται! Συζητάτε με την/τον χρήστη ${partner}.\n\n${assignment}`, 'system');
+    
+    setTimeout(() => {
+        document.getElementById('submitArea').style.display = 'flex';
+    }, 1000);
 }
 
-// Send message
-async function sendMessage() {
-    const userInput = document.getElementById('userInput');
-    const text = userInput.value.trim();
+function addMessage(text, sender) {
+    const container = document.getElementById('messagesContainer');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message';
     
-    if (text === '') return;
-    
-    addUserMessage(text);
-    await logToGoogleSheet(currentUsername, null, text);
-    
-    userInput.value = '';
-    userInput.disabled = true;
-    
-    // Show typing indicator
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'message bot-message';
-    typingDiv.textContent = '...';
-    typingDiv.id = 'typingIndicator';
-    document.getElementById('messagesContainer').appendChild(typingDiv);
-    document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;
-    
-    try {
-        const response = await callGeminiAPI(text);
-        document.getElementById('typingIndicator').remove();
-        addBotMessage(response);
-        await logToGoogleSheet(currentUsername, response, null);
-    } catch (error) {
-        document.getElementById('typingIndicator').remove();
-        addBotMessage('Sorry, I encountered an error. Please try again.');
-        console.error('API Error:', error);
+    if (sender === 'system') {
+        msgDiv.style.cssText = 'background-color: #e9ecef; color: #212529; margin-right: auto; margin-left: 0; border-radius: 20px 20px 20px 5px; border-left: 4px solid #ffc107;';
+        msgDiv.textContent = text;
+    } else if (sender === 'user') {
+        msgDiv.style.cssText = 'background-color: #006a60; color: white; margin-left: auto; margin-right: 0; border-radius: 20px 20px 5px 20px;';
+        msgDiv.textContent = `You: ${text}`;
+    } else if (sender === 'partner') {
+        msgDiv.style.cssText = 'background-color: #8B4513; color: white; margin-right: auto; margin-left: 0; border-radius: 20px 20px 20px 5px;';
+        msgDiv.textContent = `${partner}: ${text}`;
+    } else if (sender === 'bot') {
+        msgDiv.style.cssText = 'background-color: #e9ecef; color: #212529; margin-right: auto; margin-left: 0; border-radius: 20px 20px 20px 5px; border-left: 4px solid #ffc107;';
+        msgDiv.textContent = `Tutor: ${text}`;
     }
     
-    userInput.disabled = false;
-    userInput.focus();
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
 }
 
-// Gemini API call - FIXED version
-// Gemini API call - USING YOUR WORKING MODEL
-// Gemini API call - FIXED version
-// Gemini API call - USING YOUR WORKING MODEL
-
-async function callGeminiAPI(userMessage) {
-    const fullPrompt = `${systemPrompt}
-
-NOW, BEHAVE AS THIS PERSONALITY (but keep focus on Socratic teaching):
-${currentPersonality.traits}
-
-STUDENT'S MESSAGE: ${userMessage}
-
-Remember: Never give direct answers, only guide with questions. Start in Greek but switch if requested.`;
-    
+async function pollForMessages() {
     try {
         const response = await jsonpRequest(SCRIPT_URL, {
-            action: "callGemini",
-            prompt: fullPrompt,
+            action: "getHistory",
+            sessionId: sessionId,
             username: currentUsername
         });
         
-        if (response.status === 'success') {
-            return response.botResponse;
-        } else {
-            throw new Error(response.message);
+        if (response.status === "success" && response.messages) {
+            response.messages.forEach(msg => {
+                if (!lastMessageTime || new Date(msg.timestamp) > lastMessageTime) {
+                    lastMessageTime = new Date(msg.timestamp);
+                    
+                    if (msg.speaker === partner) {
+                        addMessage(msg.message, 'partner');
+                    } else if (msg.speaker === "BOT") {
+                        addMessage(msg.message, 'bot');
+                    }
+                }
+            });
         }
     } catch (error) {
-        console.error('Gemini API call failed:', error);
-        throw error;
+        console.error("Polling error:", error);
     }
 }
 
-// Add enter key support
-document.getElementById('userInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        sendMessage();
+async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const text = input.value.trim();
+    
+    if (!text || !sessionId) return;
+    
+    addMessage(text, 'user');
+    
+    await jsonpRequest(SCRIPT_URL, {
+        action: "logMsg",
+        sessionId: sessionId,
+        speaker: currentUsername,
+        message: text
+    });
+    
+    input.value = '';
+    
+    // Trigger AI analysis AFTER a short delay
+    setTimeout(async () => {
+        try {
+            await jsonpRequest(SCRIPT_URL, {
+                action: "callGemini",
+                prompt: `ANALYZE_CONVERSATION: New message from ${currentUsername}. Should I intervene as Socratic tutor?`,
+                sessionId: sessionId
+            });
+        } catch (error) {
+            console.error("AI analysis failed:", error);
+        }
+    }, 1500); // 1.5 second delay
+}
+
+async function submitFinalDecision() {
+    const decision = document.getElementById('finalDecision').value.trim();
+    if (!decision) {
+        alert('Please enter your final decision.');
+        return;
     }
+    
+    await jsonpRequest(SCRIPT_URL, {
+        action: "logMsg",
+        sessionId: sessionId,
+        speaker: 'FINAL',
+        message: decision
+    });
+    
+    alert('Final decision submitted!');
+    document.getElementById('finalDecision').disabled = true;
+    document.querySelector('.submit-area button').disabled = true;
+}
+
+function jsonpRequest(url, data) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+        const timeoutId = setTimeout(() => {
+            delete window[callbackName];
+            const script = document.querySelector(`script[src*="${callbackName}"]`);
+            if (script) document.body.removeChild(script);
+            reject(new Error('Request timeout'));
+        }, 30000);
+
+        window[callbackName] = function(response) {
+            clearTimeout(timeoutId);
+            delete window[callbackName];
+            const script = document.querySelector(`script[src*="${callbackName}"]`);
+            if (script) document.body.removeChild(script);
+            resolve(response);
+        };
+
+        const params = new URLSearchParams({
+            ...data,
+            callback: callbackName
+        });
+
+        const script = document.createElement('script');
+        script.src = url + '?' + params.toString();
+        script.onerror = (err) => {
+            clearTimeout(timeoutId);
+            reject(err);
+        };
+        document.body.appendChild(script);
+    });
+}
+
+document.getElementById('userInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') sendMessage();
 });
+
