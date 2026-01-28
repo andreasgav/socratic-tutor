@@ -1,29 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Socratic Tutor</title>
-        <meta charset="UTF-8">
+    <title>Socratic Tutor - Collaborative</title>
+    <meta charset="UTF-8">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="login-screen" id="loginScreen">
         <h1>Socratic Tutor Login</h1>
         <input type="email" id="emailInput" placeholder="yourname@csd.auth.gr">
-        <button onclick="handleLogin().catch(console.error)">Login</button>
+        <button onclick="handleLogin()">Login</button>
         <p id="errorMessage"></p>
+    </div>
+
+    <div class="waiting-screen" id="waitingScreen" style="display: none;">
+        <h2>Waiting for Partner...</h2>
+        <p id="waitingMessage">Please wait while we find another user for your session.</p>
+        <div class="spinner"></div>
+        <button onclick="cancelWaiting()">Cancel</button>
     </div>
 
     <div class="chat-screen" id="chatScreen" style="display: none;">
         <div class="header">
-            <h2>Socratic Tutor</h2>
+            <h2>Socratic Tutor - <span id="partnerName">Waiting...</span></h2>
+            <div>Session: <span id="sessionId"></span></div>
         </div>
+        
         <div class="messages" id="messagesContainer"></div>
+        
         <div class="input-area">
             <input type="text" id="userInput" placeholder="Type your message...">
             <button onclick="sendMessage()">Send</button>
+        </div>
+        
+        <div class="submit-area" id="submitArea" style="display: none;">
+            <textarea id="finalDecision" placeholder="Enter your team's final decision here..."></textarea>
+            <button onclick="submitFinalDecision()">Submit Final Decision</button>
         </div>
     </div>
 
     <script src="script.js"></script>
 </body>
 </html>
+
